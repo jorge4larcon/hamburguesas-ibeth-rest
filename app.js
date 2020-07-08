@@ -4,14 +4,14 @@ const cookieParser = require("cookie-parser");
 const logger = require("morgan");
 const helmet = require("helmet");
 const compress = require("compression");
-const cors = require('cors');
+const cors = require("cors");
 
 require("./config/config");
 
-var indexRouter = require("./routes/index");
-var usersRouter = require("./routes/users");
+let indexRouter = require("./routes/index");
+let usersRouter = require("./routes/users");
 
-var app = express();
+let app = express();
 
 app.use(logger("dev"));
 app.use(helmet());
