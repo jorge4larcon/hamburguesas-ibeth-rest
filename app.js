@@ -1,3 +1,4 @@
+const debug = require('debug')('hamburguesas-ibeth-rest:server');
 const createError = require("http-errors");
 const express = require("express");
 const cookieParser = require("cookie-parser");
@@ -8,10 +9,12 @@ const cors = require("cors");
 
 require("./config/config");
 
-let indexRouter = require("./routes/index");
-let usersRouter = require("./routes/users");
+const { usersRouter } = require('./components/users');
+const { dishesRouter } = require('./components/dishes');
+const { authRouter } = require('./components/auth');
+const { errorHandler, notFoundHandler } = require('./components/app-error');
 
-let app = express();
+const app = express();
 
 app.use(logger("dev"));
 app.use(helmet());
@@ -21,24 +24,16 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
 
-app.use("/", indexRouter);
+// app.use("/", indexRouter);
 app.use("/users", usersRouter);
+app.use("/dishes", dishesRouter);
+app.use("/auth", authRouter);
 
 // catch 404 and forward to error handler
-app.use(function (req, res, next) {
-  next(createError(404));
-});
+app.use(notFoundHandler);
 
 // error handler
-app.use(function (err, req, res, next) {
-  // set locals, only providing error in development
-  res.locals.message = err.message;
-  res.locals.error = req.app.get("env") === "development" ? err : {};
-
-  // render the error page
-  res.status(err.status || 500);
-  res.render("error");
-});
+app.use(errorHandler);
 
 // database connection
 require("./config/db-connection");

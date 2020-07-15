@@ -1,5 +1,5 @@
 const mongoose = require("mongoose");
-const debug = require("debug")("hamburguesas-ibeth:server");
+const debug = require('debug')('hamburguesas-ibeth-rest:server');
 
 function handleDbConnectionError(error) {
   throw error;

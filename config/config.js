@@ -19,6 +19,11 @@ process.env.TOKEN_EXPIRATION = 60 * 60 * 24 * 30;
 process.env.SECRET = process.env.SECRET || 'this-is-the-development-secret';
 
 /**
+ * Salt rounds for password hashing.
+ */
+process.env.SALT_ROUNDS = 10;
+
+/**
  * Database connection.
  */
 if (process.env.NODE_ENV === 'development') {
