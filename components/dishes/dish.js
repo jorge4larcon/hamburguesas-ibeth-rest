@@ -6,10 +6,11 @@ let dishSchema = new Schema({
   name: {
     type: String,
     required: [true, "`name` is required"],
+    unique: true,
   },
   price: {
-    type: String,
-    required: [true, "`password` is required"],
+    type: Number,
+    required: [true, "`price` is required"],
   },
   description: {
     type: String,
@@ -17,9 +18,16 @@ let dishSchema = new Schema({
   category: {
     type: String,
   },
-  img: {
+  imgPath: {
     type: String,
   },
+  imgMimeType: {
+    type: String,
+  },
+  isEnabled: {
+    type: Boolean,
+    default: true
+  }
 });
 
 let Dish = mongoose.model("dishes", dishSchema);

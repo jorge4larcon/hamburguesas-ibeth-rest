@@ -3,6 +3,13 @@ const controllers = require("./controllers");
 
 let router = express.Router();
 
-router.route("/").get(controllers.list);
+router
+  .route("/")
+  .get(controllers.sanitizeInputForList, controllers.list)
+  .post(
+    controllers.uploadImg,
+    controllers.sanitizeInputForCreate,
+    controllers.create
+  );
 
 module.exports = router;

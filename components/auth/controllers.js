@@ -116,12 +116,13 @@ async function tokenAuth(req, res, next) {
   if (!user) {
     throw AppError.notFound("User not found");
   }
-  req.user = { userId: user.id };
-  res.status(httpCodes.ok).json(
-    helpers.successfulResponse({
-      msg: `Hi ${req.user.userId}, it's good to see you`,
-    })
-  );
+  req.user = { id: user.id };
+  // res.status(httpCodes.ok).json(
+  //   helpers.successfulResponse({
+  //     msg: `Hi ${req.user.id}, it's good to see you`,
+  //   })
+  // );
+  next();
 }
 
 tokenAuth = helpers.wrapAsync(tokenAuth);
@@ -138,7 +139,7 @@ async function requireAuth(req, res, next) {
 
 requireAuth = helpers.wrapAsync(requireAuth);
 
-const enforce = (policy) => (req, res, next) => {
+let enforce = (policy) => (req, res, next) => {
   if (policy(req)) {
     next();
   } else {
