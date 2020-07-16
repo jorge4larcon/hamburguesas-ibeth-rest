@@ -3,6 +3,9 @@ const controllers = require("./controllers");
 
 let router = express.Router();
 
-router.route("/").post(controllers.createToken);
+router
+  .route("/")
+  .post(controllers.sanitizeInputForCreateToken, controllers.createToken)
+  .get(controllers.tokenAuth);
 
 module.exports = router;

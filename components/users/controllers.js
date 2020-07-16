@@ -1,78 +1,89 @@
 const bcrypt = require("bcrypt");
 const validator = require("validator");
-
-const debug = require("debug")("hamburguesas-ibeth-rest:server");
-const { AppError } = require("../app-error");
-const httpCodes = require('../http-codes');
-
 const config = require("./config");
-
-const lib = require("./lib");
+const debug = require("debug")("hamburguesas-ibeth-rest:server");
+const helpers = require("../helpers");
+const httpCodes = require("../http-codes");
 const User = require("./user");
+const { AppError } = require("../app-error");
+const { wrapAsync } = require("../helpers");
 
 const SALT_ROUNDS = Number(process.env.SALT_ROUNDS);
 
 async function sanitizeInputForList(req, res, next) {
-  let { skip, limit } = req.query;
-  const isValid =
-    validator.isInt(skip, { min: 0 }) *
-    validator.isInt(limit, {
-      min: config.MIN_AMOUNT_OF_USERS_TO_RETRIEVE,
-      max: config.MAX_AMOUNT_OF_USERS_TO_RETRIEVE,
-    });
-  if (isValid) {
-    req.query.skip = Number(skip);
-    req.query.limit = Number(limit);
-    next();
-  } else {
-    next(
-      new AppError(
-        "Invalid input",
-        httpCodes.badRequest,
-        "`skip` or `limit` are invalid values",
-        true
-      )
-    );
+  let skip = req.query.skip || "";
+  let limit = req.query.limit || "";
+
+  if (!validator.isInt(skip, { min: 0 })) {
+    throw AppError.inputError("Invalid value for skip field");
   }
+
+  if (
+    !validator.isInt(limit, { min: config.MIN_USERS, max: config.MAX_USERS })
+  ) {
+    throw AppError.inputError("Invalid value for limit field");
+  }
+
+  req.query.skip = Number(skip);
+  req.query.limit = Number(limit);
+  next();
 }
+
+sanitizeInputForList = helpers.wrapAsync(sanitizeInputForList);
 
 async function list(req, res, next) {
   let { skip, limit } = req.query;
-  try {
-    let users = await User.find({}).skip(skip).limit(limit).exec();
-    res.status(httpCodes.ok).json(users);
-  } catch (error) {
-    next(
-      new AppError(
-        "DB error",
-        httpCodes.internalServerError,
-        "Could not get the response from the database",
-        false
-      )
-    );
-  }
+  let users = await User.find({}).skip(skip).limit(limit).exec();
+  res.status(httpCodes.ok).json(helpers.successfulResponse({ users }));
 }
+
+list = helpers.wrapAsync(list);
+
+async function sanitizeInputForCreate(req, res, next) {
+  let email = req.body.email || "";
+  let password = req.body.password || "";
+
+  if (!validator.isEmail(email)) {
+    throw AppError.inputError("Invalid value for email field");
+  }
+
+  if (!validator.isNumeric(password) || password.length !== 6) {
+    throw AppError.inputError("Invalid value for password field");
+  }
+
+  req.body.email = email;
+  req.body.password = password;
+  next();
+}
+
+sanitizeInputForCreate = helpers.wrapAsync(sanitizeInputForCreate);
 
 async function create(req, res, next) {
-  let { username, password } = req.body;
-  let hashedPassword;
-  try {
-    hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
-  } catch (error) {
-    next(error);
-  }
-
-  let newUser = new User({ username, password: hashedPassword });
+  let { email, password } = req.body;
+  let hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
+  let newUser = new User({ email, password: hashedPassword });
   try {
     let createdUser = await newUser.save();
-    res.json(createdUser);
+    let uid = createdUser.id;
+    res.status(httpCodes.ok).json(helpers.successfulResponse({ uid }));
   } catch (error) {
-    next(error);
+    if (error.name === "MongoError" && error.code === 11000) {
+      throw AppError.inputError("This email has already been registered");
+    }
   }
 }
+
+create = helpers.wrapAsync(create);
 
 function destroy(req, res, next) {}
 
 function update(req, res, next) {}
 
-module.exports = { list, create, destroy, update, sanitizeInputForList };
+module.exports = {
+  list,
+  sanitizeInputForList,
+  create,
+  sanitizeInputForCreate,
+  destroy,
+  update,
+};

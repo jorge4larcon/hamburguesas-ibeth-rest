@@ -11,6 +11,7 @@ function handleDbConnectionError(error) {
       useNewUrlParser: true,
       useUnifiedTopology: true,
     });
+    mongoose.set('useCreateIndex', true);
     debug("Database connected");
   } catch (error) {
     handleDbConnectionError(error);

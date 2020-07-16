@@ -1,14 +1,32 @@
 const debug = require("debug")("hamburguesas-ibeth-rest:server");
 const AppError = require("./app-error");
-const httpCodes = require("../http-codes");
 
-function handleError(error) {
-  debug("An error has ocurred");
-  debug(error.name);
+
+function handleError(error) {  
+  debug(error);
+  switch(error.name) {
+    case 'Unknown error':
+    case 'Internal server error':
+    case 'MongooseError':
+      debug(error.stack);
+      return AppError.internalServerError('Internal server error');
+
+    case 'Input error':
+    case 'Database error':
+    case 'Not found error':
+      return error;
+    
+    case 'Authorization error':
+      return error;
+
+    default:
+      debug(error.stack);
+      return AppError.internalServerError('Internal server error');
+  }
 }
 
 function errorHandler(error, req, res, next) {
-  handleError(error);
+  error = handleError(error);
   res.status(error.httpCode).json({
     ok: false,
     error: error.name,
@@ -19,14 +37,8 @@ function errorHandler(error, req, res, next) {
   }
 }
 
-function notFoundHandler(req, res, next) {
-  let error = new AppError(
-    "Not Found",
-    httpCodes.notFound,
-    "Route not found",
-    true
-  );
-  next(error);
+function notFoundHandler(req, res, next) {  
+  next(AppError.notFound('Route not found'));
 }
 
 module.exports = { errorHandler, notFoundHandler };

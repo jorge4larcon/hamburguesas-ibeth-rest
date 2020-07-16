@@ -6,6 +6,6 @@ let router = express.Router();
 router
   .route("/")
   .get(controllers.sanitizeInputForList, controllers.list)
-  .post(controllers.create);
+  .post(controllers.sanitizeInputForCreate, controllers.create);
 
 module.exports = router;
