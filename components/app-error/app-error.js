@@ -50,7 +50,7 @@ AppError.goneError = function (description) {
   return new AppError("Gone error", httpCodes.gone, description, true);
 };
 
-AppError.fileError = function (description) {
+AppError.fileSystemError = function (description) {
   return new AppError("File system error", httpCodes.internalServerError, description, true);
 };
 

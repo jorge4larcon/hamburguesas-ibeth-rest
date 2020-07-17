@@ -19,7 +19,7 @@ router.route('/:id')
 
 router.route("/:id/img")
   .get(controllers.downloadImage)
-  // .put(controllers.replaceImage)
+  .put(controllers.uploadImg, controllers.replaceImage)
   .delete(controllers.destroyImage);
 
 module.exports = router;

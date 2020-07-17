@@ -7,7 +7,8 @@ const httpCodes = require("../http-codes");
 const multer = require("multer");
 const config = require("./config");
 const path = require("path");
-const fs = require("fs");
+const { successfulResponseMsg } = require("../helpers");
+const fs = require("fs").promises;
 
 async function sanitizeInputForList(req, res, next) {
   let name = req.query.name || "";
@@ -58,21 +59,28 @@ async function downloadImage(req, res, next) {
     throw AppError.notFound("Dish not found");
   }
 
+  if (!dish.imgFilename) {
+    throw AppError.goneError("This dish has not an image");
+  }
+
   let imgPath = path.join(config.UPLOADS_DIR, dish.imgFilename);
   let imgMimeType = dish.imgMimeType || "";
   let [_, ext] = imgMimeType.split("/");
   let filename = `${dish.name}.${ext}`;
-  fs.access(imgPath, (error) => {
-    if (error) {
-      throw AppError.goneError("The image does not exist");
-    } else {
-      res.status(httpCodes.ok).download(imgPath, filename, (error) => {
-        if (error) {
-          debug("Could not send the entire file");
-        }
-      });
-    }
-  });
+
+  try {
+    await fs.access(imgPath);
+    res.status(httpCodes.ok).download(imgPath, filename, (error) => {
+      if (error) {
+        debug(`Could not send file ${filename} to client ${req.ip}`);
+        res
+          .status(httpCodes.internalServerError)
+          .json(successfulResponseMsg("Sorry, we could not send you the file"));
+      }
+    });
+  } catch (error) {
+    throw AppError.goneError("The image does not exist");
+  }
 }
 
 downloadImage = helpers.wrapAsync(downloadImage);
@@ -84,25 +92,73 @@ async function destroyImage(req, res, next) {
     throw AppError.notFound("Dish not found");
   }
 
+  if (!dish.imgFilename) {
+    throw AppError.goneError("This dish has not an image");
+  }
+
   let imgPath = path.join(config.UPLOADS_DIR, dish.imgFilename);
-  fs.access(imgPath, async (error) => {
-    if (error) {
-      throw AppError.goneError("The image does not exist");
-    } else {      
-      fs.unlink(imgPath, async (error) => {
-        if (error) {
-          throw AppError.fileError("Could not delete the file, try again later"); // ERROR HERE, DO NOT CHECK IF EXIST BEFIRE ERASE
-        } else {
-          dish.imgFilename = '';
-          dish.imgMimeType = '';
-          await dish.save();
-        }
-      });
-    }
-  });
+
+  try {
+    await fs.unlink(imgPath);    
+  } catch (error) {
+    throw AppError.fileSystemError(
+      "Could not delete the file, try again later"
+    );
+  }
+
+  try {
+    dish.imgFilename = "";
+    dish.imgMimeType = "";
+    await dish.save();
+  } catch (error) {
+    debug('Could not update the fields imgFilename and imgMimeType after destroying image');
+  }
+
+  res.status(httpCodes.ok).json(helpers.successfulResponseMsg('The image has been deleted'));  
 }
 
 destroyImage = helpers.wrapAsync(destroyImage);
+
+async function replaceImage(req, res, next) {
+  let id = req.params.id || "";
+  let dish = await Dish.findById(id);
+  if (!dish) {
+    throw AppError.notFound("Dish not found");
+  }
+
+  let imgMimeType = "";
+  let imgFilename = "";
+  if (!req.file) {
+    throw AppError.inputError('You did not provided a image to replace the current one');
+  }
+  imgMimeType = req.file.mimetype;
+  imgFilename = req.file.filename;
+  
+  // DELETE THE EXISTING FILE IF EXISTS
+  if (dish.imgFilename) {
+    let imgPath = path.join(config.UPLOADS_DIR, dish.imgFilename);
+    try {
+      await fs.unlink(imgPath);    
+    } catch (error) {
+      throw AppError.fileSystemError(
+        "Could not replace the file, try again later"
+      );
+    }    
+  }
+
+  // UPDATE THE DB FIELDS
+  try {
+    dish.imgFilename = imgFilename;
+    dish.imgMimeType = imgMimeType;
+    await dish.save();
+    res.status(httpCodes.ok).json(helpers.successfulResponseMsg('The image was replaced'))
+  } catch (error) {
+    debug('Could not update the fields imgFilename and imgMimeType after destroying image');
+    throw AppError.dbError('Database field were not updated');
+  }
+}
+
+replaceImage = helpers.wrapAsync(replaceImage);
 
 async function sanitizeInputForRead(req, res, next) {
   let id = req.params.id || "";
@@ -234,9 +290,9 @@ async function destroy(req, res, next) {
   let id = req.params.id;
   let dish = await Dish.findByIdAndDelete(id);
   if (!dish) {
-    throw AppError.notFound('Dish not found');
+    throw AppError.notFound("Dish not found");
   }
-  res.status(httpCodes.ok).json(helpers.successfulResponseMsg('Dish deleted'));
+  res.status(httpCodes.ok).json(helpers.successfulResponseMsg("Dish deleted"));
 }
 
 destroy = helpers.wrapAsync(destroy);
@@ -332,10 +388,11 @@ module.exports = {
   uploadImg,
   destroy,
   sanitizeInputForDestroy,
-  update,  
+  update,
   sanitizeInputForUpdate,
   downloadImage,
   destroyImage,
+  replaceImage,
   read,
   sanitizeInputForRead,
 };

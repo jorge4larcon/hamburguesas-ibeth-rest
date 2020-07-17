@@ -15,6 +15,10 @@ function successfulResponseMsg(msg) {
   return { ok: true, msg };
 }
 
+function errorResponseMsg(msg) {
+  return { ok: false, msg };
+}
+
 function multerImgFileFilter(req, file, callback) {
   let ext = path.extname(file.originalname);
   if (ext !== ".png" && ext !== ".jpg" && ext !== ".gif" && ext !== ".jpeg") {
