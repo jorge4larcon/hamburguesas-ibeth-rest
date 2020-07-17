@@ -74,6 +74,14 @@ createToken = helpers.wrapAsync(createToken);
 
 async function tokenAuth(req, res, next) {
   let header = req.headers.authorization || "";
+
+  if (!header) {
+    throw AppError.authorizationError(
+      httpCodes.unauthorized,
+      "You must authenticate with Bearer to access this routes"
+    );
+  }
+
   let [type, token] = header.split(" ");
   if (type !== "Bearer") {
     throw AppError.inputError("Only Bearer authentication is supported");

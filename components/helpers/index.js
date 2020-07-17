@@ -1,4 +1,4 @@
-const path = require('path');
+const path = require("path");
 const { AppError } = require("../app-error");
 
 function wrapAsync(fn) {
@@ -11,6 +11,10 @@ function successfulResponse(data) {
   return { ok: true, ...data };
 }
 
+function successfulResponseMsg(msg) {
+  return { ok: true, msg };
+}
+
 function multerImgFileFilter(req, file, callback) {
   let ext = path.extname(file.originalname);
   if (ext !== ".png" && ext !== ".jpg" && ext !== ".gif" && ext !== ".jpeg") {
@@ -21,4 +25,9 @@ function multerImgFileFilter(req, file, callback) {
   callback(null, true);
 }
 
-module.exports = { wrapAsync, successfulResponse, multerImgFileFilter };
+module.exports = {
+  wrapAsync,
+  successfulResponse,
+  multerImgFileFilter,
+  successfulResponseMsg,
+};

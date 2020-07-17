@@ -5,8 +5,7 @@ const Schema = mongoose.Schema;
 let dishSchema = new Schema({
   name: {
     type: String,
-    required: [true, "`name` is required"],
-    unique: true,
+    required: [true, "`name` is required"],    
   },
   price: {
     type: Number,
@@ -18,7 +17,7 @@ let dishSchema = new Schema({
   category: {
     type: String,
   },
-  imgPath: {
+  imgFilename: {
     type: String,
   },
   imgMimeType: {
@@ -26,8 +25,8 @@ let dishSchema = new Schema({
   },
   isEnabled: {
     type: Boolean,
-    default: true
-  }
+    default: true,
+  },
 });
 
 let Dish = mongoose.model("dishes", dishSchema);

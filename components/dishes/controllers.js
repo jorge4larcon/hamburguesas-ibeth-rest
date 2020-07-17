@@ -6,47 +6,142 @@ const helpers = require("../helpers");
 const httpCodes = require("../http-codes");
 const multer = require("multer");
 const config = require("./config");
+const path = require("path");
+const fs = require("fs");
 
 async function sanitizeInputForList(req, res, next) {
   let name = req.query.name || "";
   let category = req.query.category || "";
+  let skip = req.query.skip || "0";
+  let limit = req.query.limit || `${config.MAX_DISHES}`;
 
-  if (3 > name.length || name.length > 50) {
-    throw AppError.inputError("Invalid value for name field");
+  if (!validator.isInt(skip, { min: 0 })) {
+    throw AppError.inputError("Invalid value for skip field");
   }
 
-  if (3 > category.length || category.length > 50) {
-    throw AppError.inputError("Invalid value for category field");
+  if (
+    !validator.isInt(limit, { min: config.MIN_DISHES, max: config.MAX_DISHES })
+  ) {
+    throw AppError.inputError("Invalid value for limit field");
   }
 
   req.query.name = name;
   req.query.category = category;
+  req.query.skip = Number(skip);
+  req.query.limit = Number(limit);
   next();
 }
 
 sanitizeInputForList = helpers.wrapAsync(sanitizeInputForList);
 
 async function list(req, res, next) {
-  let { name, category } = req.query;
+  let { name, category, skip, limit } = req.query;
+
   let dishes = await Dish.find({
     name: { $regex: name },
     category: { $regex: category },
-  }).exec();
+  })
+    .select("id name description price isEnabled category")
+    .skip(skip)
+    .limit(limit)
+    .exec();
+
   res.status(httpCodes.ok).json(helpers.successfulResponse({ dishes }));
 }
 
 list = helpers.wrapAsync(list);
+
+async function downloadImage(req, res, next) {
+  let id = req.params.id || "";
+  let dish = await Dish.findById(id);
+  if (!dish) {
+    throw AppError.notFound("Dish not found");
+  }
+
+  let imgPath = path.join(config.UPLOADS_DIR, dish.imgFilename);
+  let imgMimeType = dish.imgMimeType || "";
+  let [_, ext] = imgMimeType.split("/");
+  let filename = `${dish.name}.${ext}`;
+  fs.access(imgPath, (error) => {
+    if (error) {
+      throw AppError.goneError("The image does not exist");
+    } else {
+      res.status(httpCodes.ok).download(imgPath, filename, (error) => {
+        if (error) {
+          debug("Could not send the entire file");
+        }
+      });
+    }
+  });
+}
+
+downloadImage = helpers.wrapAsync(downloadImage);
+
+async function destroyImage(req, res, next) {
+  let id = req.params.id || "";
+  let dish = await Dish.findById(id);
+  if (!dish) {
+    throw AppError.notFound("Dish not found");
+  }
+
+  let imgPath = path.join(config.UPLOADS_DIR, dish.imgFilename);
+  fs.access(imgPath, async (error) => {
+    if (error) {
+      throw AppError.goneError("The image does not exist");
+    } else {      
+      fs.unlink(imgPath, async (error) => {
+        if (error) {
+          throw AppError.fileError("Could not delete the file, try again later"); // ERROR HERE, DO NOT CHECK IF EXIST BEFIRE ERASE
+        } else {
+          dish.imgFilename = '';
+          dish.imgMimeType = '';
+          await dish.save();
+        }
+      });
+    }
+  });
+}
+
+destroyImage = helpers.wrapAsync(destroyImage);
+
+async function sanitizeInputForRead(req, res, next) {
+  let id = req.params.id || "";
+  if (!validator.isMongoId(id)) {
+    throw AppError.inputError("Invalid value for route parameter id");
+  }
+
+  req.params.id = id;
+  next();
+}
+
+sanitizeInputForRead = helpers.wrapAsync(sanitizeInputForRead);
+
+async function read(req, res, next) {
+  let id = req.params.id;
+  let dish = await Dish.findById(
+    id,
+    "id name description price isEnabled category"
+  );
+  if (!dish) {
+    throw AppError.notFound("Dish not found");
+  }
+  res.status(httpCodes.ok).json(helpers.successfulResponse({ dish }));
+}
+
+read = helpers.wrapAsync(read);
 
 async function sanitizeInputForCreate(req, res, next) {
   let name = req.body.name || "";
   let description = req.body.description || "";
   let price = req.body.price || "";
   let category = req.body.category || "";
+  let isEnabled = req.body.isEnabled || "";
 
   name = name.trim();
   description = description.trim();
   price = price.trim();
   category = category.trim();
+  isEnabled = isEnabled.trim();
 
   if (3 > name.length || name.length > 50) {
     throw AppError.inputError("Invalid value for name field");
@@ -69,10 +164,15 @@ async function sanitizeInputForCreate(req, res, next) {
     throw AppError.inputError("Invalid value for category field");
   }
 
+  if (!validator.isBoolean(isEnabled)) {
+    throw AppError.inputError("Invalid value for isEnabled field");
+  }
+
   req.body.name = name;
   req.body.description = description;
   req.body.price = price;
   req.body.category = category;
+  req.body.isEnabled = isEnabled;
   next();
 }
 
@@ -81,10 +181,10 @@ sanitizeInputForCreate = helpers.wrapAsync(sanitizeInputForCreate);
 async function create(req, res, next) {
   let { name, description, price, category } = req.body;
   let imgMimeType = "";
-  let imgPath = "";
+  let imgFilename = "";
   if (req.file) {
     imgMimeType = req.file.mimetype;
-    imgPath = req.file.path;
+    imgFilename = req.file.filename;
   }
 
   let newDish = new Dish({
@@ -92,7 +192,7 @@ async function create(req, res, next) {
     description,
     price,
     category,
-    imgPath,
+    imgFilename,
     imgMimeType,
   });
 
@@ -119,9 +219,110 @@ const multerOptions = {
 
 let uploadImg = multer(multerOptions).single("img");
 
-function destroy(req, res, next) {}
+async function sanitizeInputForDestroy(req, res, next) {
+  let id = req.params.id || "";
+  if (!validator.isMongoId(id)) {
+    throw AppError.inputError("Invalid value for route parameter id");
+  }
+  req.params.id = id;
+  next();
+}
 
-function update(req, res, next) {}
+sanitizeInputForDestroy = helpers.wrapAsync(sanitizeInputForDestroy);
+
+async function destroy(req, res, next) {
+  let id = req.params.id;
+  let dish = await Dish.findByIdAndDelete(id);
+  if (!dish) {
+    throw AppError.notFound('Dish not found');
+  }
+  res.status(httpCodes.ok).json(helpers.successfulResponseMsg('Dish deleted'));
+}
+
+destroy = helpers.wrapAsync(destroy);
+
+async function sanitizeInputForUpdate(req, res, next) {
+  let id = req.params.id || "";
+  if (!validator.isMongoId(id)) {
+    throw AppError.inputError("Invalid value for route parameter id");
+  }
+  req.params.id = id;
+
+  let name = req.body.name;
+  if (name) {
+    name = name.trim();
+    if (3 > name.length || name.length > 50) {
+      throw AppError.inputError("Invalid value for name field");
+    }
+    req.body.name = name;
+  }
+
+  let description = req.body.description;
+  if (description) {
+    description = description.trim();
+    if (description.length > 255) {
+      throw AppError.inputError("Invalid value for description field");
+    }
+    req.body.description = description;
+  }
+
+  let price = req.body.price;
+  if (price) {
+    price = price.trim();
+    if (
+      !validator.isDecimal(price, { decimal_digits: "2,", locale: "en-US" })
+    ) {
+      throw AppError.inputError("Invalid value for price field");
+    }
+    price = Number(price);
+    if (price < 0) {
+      throw AppError.inputError("Invalid value for price field");
+    }
+    req.body.price = price;
+  }
+
+  let category = req.body.category;
+  if (category) {
+    category = category.trim();
+    if (3 > category.length || category.length > 50) {
+      throw AppError.inputError("Invalid value for category field");
+    }
+    req.body.category = category;
+  }
+
+  let isEnabled = req.body.isEnabled;
+  if (isEnabled) {
+    isEnabled = isEnabled.trim();
+    if (!validator.isBoolean(isEnabled)) {
+      throw AppError.inputError("Invalid value for isEnabled field");
+    }
+    req.body.isEnabled = isEnabled;
+  }
+
+  next();
+}
+
+sanitizeInputForUpdate = helpers.wrapAsync(sanitizeInputForUpdate);
+
+async function update(req, res, next) {
+  let { name, description, price, category, isEnabled } = req.body;
+  let fieldsToUpdate = { name, description, price, category, isEnabled };
+  Object.keys(fieldsToUpdate).forEach((key) =>
+    fieldsToUpdate[key] === undefined ? delete fieldsToUpdate[key] : {}
+  );
+
+  if (Object.entries(fieldsToUpdate).length === 0) {
+    throw AppError.inputError("Nothing to update");
+  }
+
+  let dish = await Dish.findByIdAndUpdate(req.params.id, fieldsToUpdate);
+  if (!dish) {
+    throw AppError.notFound("Dish not found");
+  }
+  res.status(httpCodes.ok).json(helpers.successfulResponseMsg("Dish updated"));
+}
+
+update = helpers.wrapAsync(update);
 
 module.exports = {
   list,
@@ -130,5 +331,11 @@ module.exports = {
   sanitizeInputForCreate,
   uploadImg,
   destroy,
-  update,
+  sanitizeInputForDestroy,
+  update,  
+  sanitizeInputForUpdate,
+  downloadImage,
+  destroyImage,
+  read,
+  sanitizeInputForRead,
 };
