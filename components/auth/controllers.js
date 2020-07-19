@@ -76,10 +76,7 @@ async function tokenAuth(req, res, next) {
   let header = req.headers.authorization || "";
 
   if (!header) {
-    throw AppError.authorizationError(
-      httpCodes.unauthorized,
-      "You must authenticate with Bearer to access this routes"
-    );
+    next();
   }
 
   let [type, token] = header.split(" ");

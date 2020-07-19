@@ -11,7 +11,7 @@ require("./config/config");
 
 const { usersRouter } = require('./components/users');
 const { dishesRouter } = require('./components/dishes');
-const { authRouter, requireAuth, tokenAuth } = require('./components/auth');
+const { tokenAuth } = require('./components/auth');
 const { errorHandler, notFoundHandler } = require('./components/app-error');
 
 const app = express();
@@ -27,9 +27,8 @@ app.use(cookieParser());
 // app.use("/", indexRouter);
 app.use("/auth", authRouter);
 app.use(tokenAuth);
-app.use(requireAuth);
-app.use("/users", usersRouter);
 app.use("/dishes", dishesRouter);
+// app.use("/users", usersRouter);
 
 // catch 404 and forward to error handler
 app.use(notFoundHandler);
